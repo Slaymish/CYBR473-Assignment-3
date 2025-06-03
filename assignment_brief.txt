@@ -1,0 +1,229 @@
+ Assignment 3: Proof-of-Concept Malware & Red Team Thinking
+
+Due: Friday 13 June 2025 at 23:59
+
+Introduction
+
+Assessment 3 is worth 40% of the overall grade. It involves implementing a remotely controlled keylogger and demonstrating that it works as intended.
+
+Ethical Note: This assignment is meant purely for academic exploration in a controlled environment. You are not permitted to deploy your malware outside the sandboxed settings intended in this coursework.
+
+    1. Goal
+    2. Structure and Assessment Criteria
+        I. Core [50% overall]
+            Suggested C2 and workflow design: 
+        II. Completion [50% overall] 
+    4. Language Choice
+    4. What (and how) to Submit 
+
+1. Goal
+
+The goal of this assignment is to design and implement a proof-of-concept malware that showcases your ability to adopt an attacker's mindset. You will demonstrate knowledge of key malware components—such as command and control, data exfiltration, and stealth—and apply technical knowledge covered in lectures and readings.
+
+2. Structure and Assessment Criteria
+
+This assignment has "Core" and "Completion" parts. You must complete all "Core" requirements (50%) to unlock the "Completion" section (remaining 50%). The Completion section focuses on stealth, evasion, and resilience against real-world defensive techniques.
+
+The assignment will be marked out of 100. The breakdown of the mark is as follows:
+
+    The Core part has 50% worth. The specific contribution of each requirement is specified in the task description. You should complete this part first: You can only "unlock" the remaining 50% if you have accomplished the first part, specially, the tasks that are described with the keyword must.
+    The Completion part carries the remaining 50%. For this part, you will be presented with a list of actions potentially taken by a defender. You should interpret what you can incorporate in the malware to resist against that action and implement it.
+        The first correct mechanism to address each defensive action carries 5% (1% for the idea and 4% for the correct implementation).
+        For each defensive action, there may be multiple "independent" mechanisms that the malware can implement to make the defense harder. However, only your first mechanism carries 5% and any subsequent "independent" ones you implement will only carry 2% each. 
+
+You can share ideas on how to solve the problems with a partner but you must submit a solution that is your own making.
+
+I. Core [50% overall]
+
+The Core section focuses on building essential malware functionality and basic evasion techniques.
+
+1. Command and Control Architecture [10%]
+
+Your malware must generate a unique ID based on host information and must register itself with a central HTTP Command-and-Control (C2) server for the Core part. The C2 server is responsible for
+
+    Sending commands to registered malware instances
+    Receiving exfiltrated data (the keylogs)
+    Tracking beacon signals to monitor which malware instances are active 
+
+For testing, the C2 server may run on localhost, but it should be built as though it will operate over the internet (e.g., http://www.example.com).
+
+2. Command execution [5%]
+
+You must implement the following commands:
+
+    slp n: puts the malware id to sleep for n seconds.
+    shd: causes the malware id to shut itself down.
+    pwn: display a fun message at the client, like "sorry, you've been pwned, for educational purposes!", or something else, that alarms the victim that their system is infected! 
+
+3. Keylogging [10%]
+
+Your malware must implement a keylogger that logs all keystrokes. Your keylogger should map non-printable keys (e.g., ENTER, TAB, etc.) to readable tokens such as [ENTER], [TAB]. You may use standard libraries or key mapping tables for this.
+
+4. Exfiltration [5%]
+
+Your malware should periodically upload the keylog file to the command-and-control server and delete the (locally saved) keylog file. Ensure reliable exfiltration: your malware must confirm that data has been successfully uploaded before deleting local copies. Implement retries on failure (e.g., retry up to 3 times).
+
+5. Data encoding [5%]
+
+To hide data and make detection more difficult, your malware must implement encoding and decoding techniques:
+
+    In-memory encoding
+    On-disk encoding for keylog data
+    Network encoding for all communications, including commands and exfiltrated data 
+
+You should implement a variant of NULL XOR encryption from the course, but with a twist: after each XOR operation, the encryption key must undergo a bitwise circular shift to the right by one bit. The key is one byte long and can be hardcoded for the Core part.
+
+6. Beaconing [5%]
+
+The malware must regularly "beacon" to indicate active status (the malware is alive, functioning and ready for instructions), as well as polling whether the server has any new instructions to be fetched (any new commands to be executed). Each beacon should include the unique malware ID and a timestamp. For the Core, it is sufficient to beacon at a regular time periods (e.g., every 30 seconds). When the command-and-control server lists infected hosts, it should use this information to indicate whether each victim is believed to be active or inactive.
+
+💡 Note: this polling for commands by the infected hosts (as opposed to the C2 pushing them)simplifies network interactions and mimics common malware behavior.
+
+7. Package as a binary (executable) file and build a social engineering exploit [5%+5%]
+
+You must package your malware as a standalone binary (compiled for a 32-bit Windows OS).
+
+You should prepare a "phishing" email aimed at me (arman) that is designed to have the victim (me!) run it (which will then install itself). Don't send that email to me though -- this is just a text file, part of your submission!
+
+Suggested C2 and workflow design:
+
+The following is just a suggested structure for your C2 server's app routing logic — feel free to design your own variant.
+
+Endpoints Used by the Attacker (via web GUI or direct HTTP calls):
+
+    GET /clients: Return a list of registered malware instances with:
+        Their unique ID
+        Last beacon (poll) timestamp
+        Link to their collected keylogs 
+    GET /logs/{id}: Displays the keystrokes collected from a specific client.
+    POST /commands or GET /commands (your choice): Endpoint to send a new command to a malware instance. Parameters: id: Malware instance ID, and cmd: Command string (slp, shd, pwn, etc.) 
+
+Endpoints Used by the Malware:
+
+    POST /register or GET /register: Called once by the malware when it first starts. It includes:
+        Unique malware ID
+        System fingerprinting data (e.g., OS version, architecture) 
+
+Note: If you choose to (ab)use GET here, remember that GET requests have no body. You'll need to encode all data in the GET itself:
+
+        URL query parameters (e.g., ?id=xyz&os=win&arch=x86)
+        Custom HTTP headers (e.g., X-Client-ID, X-System-Info)
+        Cookies (e.g., Cookie: id=xyz; os=win; arch=x86)
+        Even the User-Agent string (as discussed in the lecture) 
+
+Note: you may even choose to have registration combined with the first poll to /command for extreme minimalism.
+
+    GET /command?id=xyz: The malware polls this endpoint periodically to receive commands. This request also serves as a beacon, confirming that the malware is alive and reachable. If you want to separate beaconing and command polling (e.g., different intervals), you can use distinct endpoints like /beacon and /command.
+    POST /upload?id=xyz: Used by the malware to upload exfiltrated data (e.g., keylogs). The server should store the file and return a success acknowledgment. Once acknowledged, the malware should delete the local copy of the file. 
+
+The (suggested) workflow of the malware:
+
+    Startup: Malware registers with the C2 server and begins beaconing periodically.
+    Polling: Malware continuously polls the /command endpoint every few seconds.
+    Command Received: If a new command is available, malware executes it immediately.
+    Keylogging + Exfiltration: Keylog data is periodically uploaded via /upload. 
+
+II. Completion [50% overall]
+
+This should be attempted only when you have finished all the Core parts. The Completion section focuses on applying defensive evasion techniques and making your malware stealthier. Defenders will attempt to detect and neutralise your malware. You will implement countermeasures to make their job more difficult. In particular:
+
+    The defender may use antivirus software to detect the malware.
+    The defender will collect packet traces from the network and use the traffic analysis to identify the infected hosts (e.g. via their data exfiltration and beaconing), and develop network-based signatures to block its traffic at the network gateway.
+    The defender may look for evidence of keylog files on infected machines.
+    The defender may use network traffic analysis to find your C2 server's IP address or domain. This can be used to blocklist it at the gateway, and also a takedown request be actioned.
+    Reboot the client machines so that the malware will be forced to shut down.
+    Say the defender has managed to identify the machine that is infected and obtained a copy of your malware. You know that they will first send it to somewhere like VirusTotal for a signature match, or a basic static analysis.
+    You know that they are likely to use a disassembler like IDA-pro or ghidra to analyse your malware.
+    The defender may be running your malware inside a standard sandbox for quick dynamic analysis.
+    They may also run your malware executable in a debugger like OllyDbg or x64dbg for deep dynamic analysis. They may try to set breakpoints, trace execution, or step through code.
+    The defender may be analysing your malware for deep analysis inside a virtual machine, e.g. using VirtualBox.
+    The malware analyst will eventually find the hard-coded key and will be able to decipher the communications of malware with the C2.
+    The malware analyst will spoof the C&C server itself to send the shutdown command to all hosts on the network to try and deactivate the malware ("kill-switch").
+    The defender may look for suspicious processes or unusual binaries on disk. They may trust processes signed by Microsoft or running from C:\Windows\System32.
+    The defender might use tools that enumerate running processes, loaded DLLs, or system calls to detect malicious behavior. They may inspect standard Windows APIs like OpenProcess, CreateFile, etc.
+    The defender might look for persistent malware artifacts in startup folders, registry keys, or scheduled tasks. 
+
+Implement counter-mechanisms to resist against as many of the above defense actions as you can (to make the job of the defenders more difficult). Note that for some of these tasks, although you can rely on the material from the book for ideas, the actual implementation may need some experimentation and further research. We are interested in your depth of exploration and your failures as well as your successes.
+
+4. Language Choice
+
+There is no restriction for your choice of programming language, with the following caveat:
+
+    If you use a compiled language such as C or C++, you will receive a 5% bonus. That is, your score for this assignment (out of 100) will be multiplied by 1.05, capped at 100.
+    If you use an interpreted language (e.g., Python) or a language compiled to an intermediate language (e.g., Java, C#), there is no bonus. 
+
+Regardless of language, your malware must be compiled into a standalone executable that runs on a bare-bones 32-bit Windows OS. The executable should be as small as reasonably possible.
+
+Note: This restriction (of language) applies only to the malware (victim-side) component. You are free to implement the command-and-control (C2) server in any language or framework you prefer, since it runs on the attacker-controlled system where dependencies are under their control.
+
+If you choose Python, you can take advantage of a provided keylogger sample file.
+
+    Keylogger script
+        logger.py: Hooks into Windows keyboard events and logs output to $HOME/Downloads/output.txt
+        Run with pythonw logger.py to start in the background. To stop it, use Task Manager to terminate the Python process.
+        Completing the last part of the assignment requires you to convert it to an executable, do this using command line pyinstaller logger.py and look in the dist/ directory 
+    Command and control server:
+        Flask Quick start covering installation on Mac and Windows and a simple webb application using flask (feel free to choose any framework though -- some other possible frameworks: Python's FastAPI, Node.js Express, Java's Spring Boot, Go with net/http, or even plain old PHP!).
+        Short tutorial on how to use requests library for a client program 
+    Background documentation:
+        PyHook tutorial - How to hook into Windows events.
+        KeyboardEvent class - Represents keyboard input; use .KeyID for virtual key codes.
+        Virtual Key Values - Reference to interpret special keys (e.g., PGUP, ARROW LEFT)
+        PyWin documentation - Working with Windows processes
+        PyInstaller - Creating executables from Python scripts. 
+
+4. What (and how) to Submit
+Upload a video demo of your malware to Nuku
+
+Submit a compressed archive file (ZIP or tarball) through wiki, containing:
+
+    Your malware source code (clean, organised, well-commented and compilable).
+    Compiled 32-bit Windows binary
+    A plaintext (.txt) “phishing email” -- creative and believable, designed to convince a hypothetical victim (e.g., me!) to run your malware. Do not actually send the email.
+    A README.md describing:
+        How to build/run/test your malware.
+        How to set up and interact with the command-and-control (C2) server.
+        Which defenses (from the Completion section) you've attempted to bypass, and how.
+        Which defenses you've attempted to bypass (for Completion)
+        Any dependencies, assumptions, or quirks I should be aware of.
+        Any known bugs or limitations. 
+
+No separate report beyond your comments on the code, your README.md, and your video demo is necessary, you're welcome!.
+
+🎥 Video Demonstration Guidelines
+
+Your demo should be well-structured. It must include:
+
+    A code walk-through, clearly mapping features to the Core and Completion requirements. (Out-of-order is fine as long as clearly explained.)
+    A run-through of your malware in action, including:
+        Infection on a test host.
+        Keystroke logging and exfiltration to your C2 server.
+        Demonstration of C2 server endpoints (e.g., /clients, /logs) and the malware's response to:
+            slp (sleep)
+            shd (shutdown)
+            pwn (display prank message) 
+        Evidence of beaconing.
+        Showcase any implemented evasion techniques, such as:
+            Anti-debugging
+            Anti-disassembly
+            Anti-VM/sandbox detection 
+
+Please narrate clearly (using a good microphone, or a quiet environment). Your voice should be easy to follow, and your tone enthusiastic! No soundtracks, memes, or animated explosions necessary!
+
+In terms of "code quality", we will take the following into account looking at the following (based on Google guidelines):
+
+    The code is well-designed.
+    The code isn't more complex than it needs to be.
+    The developer isn't implementing things they might need in the future but don't know they need now.
+    The developer used clear and consistent names for everything (variables, functions, etc.)
+    Comments are clear and useful and mostly explain why instead of what. 
+
+Your final mark will reflect:
+
+    Evidence of work completed (not just results, but thoughtful effort)
+    Technical challenge of your implementation
+    Depth of understanding of your design's strengths and weaknesses
+    Creativity and experimentation
+    Independent research and initiative 
+
+A clean, readable demo and well-commented code will work in your favour. A tangled blob of uncommented functions and a muddled, monotone video will not. 

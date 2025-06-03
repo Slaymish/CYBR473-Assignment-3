@@ -1,20 +1,48 @@
-Command and control architecture [10%]
+# Command & Control (C2) Server
 
-Your malware must register itself with a central HTTP server (the Command-and-Control, a.k.a C&C, a.k.a. C2) to receive commands and transfer exfiltrated data. For testing purposes and for convenience, you may choose to run the C2 on localhost.
+This README tracks the **Core** and **Completion** requirements for the C2 server as described in the assignment brief.
 
-Your malware should generate a unique ID for itself based upon host information as described in the book. It should be uniquely identifying to allow the malware to receive instructions in the future.
+---
 
-Your C2 server should expose an HTTP interface that allows basic interaction, such as:
+## Core checklist
 
-* GET /clients → List of registered malware clients with their IDs, and their status (active/inactive), and a link to display the collected keylogs of that client
+| Requirement                                                         | Status                                  |
+| ------------------------------------------------------------------- | --------------------------------------- |
+| Generate SQLite-backed registry of malware with unique ID, OS, arch | ✅ Implemented (`db.upsert_client`)      |
+| `POST /register` endpoint for first‑time registration               | ✅                                       |
+| `GET /command` polling endpoint returns one‑shot queued command     | ✅                                       |
+| `POST /upload` accepts keylog payload & stores to disk + DB         | ✅                                       |
+| `GET /clients` HTML list with ID, OS, arch, last‑seen               | ✅                                       |
+| `GET /logs/<id>` view of decrypted keylogs                          | ✅                                       |
+| `POST /commands` operator endpoint queues command                   | ✅                                       |
+| Beacon tracking & active/inactive status (≤ 90 s sweeper)           | ✅ (`db.mark_stale` + background thread) |
+| Data encoding/decoding helper (XOR + rotate‑right)                  | ✅ (`crypto.py`)                         |
+| Shared secret auth on malware‑facing routes                         | ✅ (`require_secret` decorator)          |
+| Persistent state (`c2.db`) survives restarts                        | ✅                                       |
+| Unit test suite (pytest) with pre‑commit gate                       | ✅                                       |
+| Makefile shortcuts (`make run`, `make test`)                        | ✅                                       |
+| HTTPS support (adhoc cert)                                          | ⬜ planned                               |
+| Basic operator GUI polish (CSS, search/filter)                      | ⬜ planned                               |
+| Dockerfile for easy deployment                                      | ⬜ planned                               |
 
-* GET /logs/{id} → Displays exfiltrated keystrokes for a given client
+---
 
-Command execution [5%]
+## Completion ideas (stretch)
 
-You must implement the following commands:
+* [ ] Rate‑limiting /auth throttling.
+* [ ] Auto‑expire old logs & compress.
+* [ ] Obfuscated traffic patterns (padding, random jitter).
+* [ ] Domain‑fronted endpoints.
 
-    slp id n: puts the malware id to sleep for n seconds.
-    shd id: causes the malware id to shut itself down.
-    pwn id: display a fun message at the client, like "sorry, you've been pwned, for educational purposes!", or something else, that alarms the victim that their system is infected! 
+---
+
+### Quick start
+
+```bash
+# dev server
+make run   # requires Python 3.13+
+
+# tests
+make test  # runs pytest with pre‑commit config
+```
 
