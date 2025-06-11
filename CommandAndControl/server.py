@@ -34,7 +34,7 @@ def register():
         return jsonify(error="missing id"), 400
 
     db.upsert_client(cid, data.get("os","unknown"), data.get("arch","unknown"))
-    return jsonify(ok=True), 201
+    return jsonify(ok=True), 201 
 
 @app.get("/command")
 @require_secret
