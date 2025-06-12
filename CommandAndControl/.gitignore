@@ -2,3 +2,4 @@ __pycache__/
 logs/
 c2.db
 ../assignment_brief.txt
+env
