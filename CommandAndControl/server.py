@@ -114,5 +114,5 @@ if __name__ == "__main__":
             time.sleep(30)
     threading.Thread(target=sweeper, daemon=True).start()
 
-    app.run(debug=True)
+    app.run(debug=True,ssl_context=("cert.pem", "key.pem"))
 
