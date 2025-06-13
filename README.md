@@ -1,6 +1,6 @@
 # CYBR473 Assignment 3 – Proof‑of‑Concept Malware & C2
 
-Welcome! This repository is split into two main components:
+Hello! This repository is split into two main components:
 
 * **CommandAndControl** – Flask‑based C2 server ([README](CommandAndControl/README.md))
 * **Malware** – Windows client keylogger ([README](Malware/README.md))
